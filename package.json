@@ -1,0 +1,31 @@
+{
+  "name": "langchain-agent",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node src/01-chat.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.10.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "dependencies": {
+    "@inquirer/prompts": "^8.5.2",
+    "@langchain/core": "^1.2.8",
+    "@langchain/openai": "^1.5.8",
+    "dotenv": "^17.4.2",
+    "langchain": "^1.5.9"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
+  }
+}
