@@ -1,7 +1,7 @@
-import { ChatOpenAI } from '@langchain/openai'
 import { config } from 'dotenv'
 import { readFile } from 'fs/promises'
 import { input } from '@inquirer/prompts'
+import { createModel } from './utils/index.js'
 
 // 这里用 new URL 来获取的原因是不同目录下启动的 node 进程，__dirname 的值不一样，导致路径不对
 const systemPrompt = await readFile(new URL('../prompts/AGENTS.md', import.meta.url), 'utf-8')
@@ -9,21 +9,7 @@ const systemPrompt = await readFile(new URL('../prompts/AGENTS.md', import.meta.
 // 加载环境变量
 config()
 
-const chatModel = new ChatOpenAI({
-  // 模型名
-  model: process.env.AI_MODEL,
-  // 额外传递给模型的参数
-  modelKwargs: {
-    // 关闭深度思考
-    enable_thinking: false,
-  },
-  configuration: {
-    // 模型厂商提供的 baseURL
-    baseURL: process.env.AI_BASE_URL,
-    // 你自己的 API KEY
-    apiKey: process.env.AI_API_KEY,
-  },
-})
+const chatModel = createModel()
 
 // 在命令行里输入文本
 const content = await input({ message: '你 >' })
