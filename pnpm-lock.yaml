@@ -222,6 +222,9 @@ importers:
       langchain:
         specifier: ^1.5.9
         version: 1.5.9(@langchain/core@1.2.8(openai@6.49.0(zod@4.4.3)))(openai@6.49.0(zod@4.4.3))
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       prettier:
         specifier: ^3.9.6
