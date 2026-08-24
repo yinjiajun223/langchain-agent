@@ -60,7 +60,7 @@ export async function summaryMessages(messages) {
 
   return [
     {
-      role: 'system',
+      role: 'user',
       // 摘要要重新放回 messages，模型下一轮才能看到早期关键信息。
       content: `前面对话摘要：\n${summary}`,
     },
