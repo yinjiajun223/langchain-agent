@@ -1,6 +1,6 @@
 # LangChain Agent 学习项目
 
-这是一个使用 Node.js、LangChain.js 和兼容 OpenAI API 的模型服务构建的命令行示例项目。代码按学习路径拆分，逐步展示基础对话、提示词与上下文工程、工具调用、Agent、持久化记忆、中间件和 RAG。
+这是一个使用 Node.js、LangChain.js、LangGraph 和兼容 OpenAI API 的模型服务构建的命令行示例项目。代码按学习路径拆分，逐步展示基础对话、提示词与上下文工程、工具调用、Agent、持久化记忆、中间件、RAG、MCP、LangGraph 和 Responses API。
 
 ## 项目内容
 
@@ -18,6 +18,15 @@
 | `src/10-rag.js`                 | 基础 RAG           | 将内置文档向量化后写入内存向量库，检索相关片段并交给模型回答                       |
 | `src/11-rag-doc.js`             | 文档 RAG           | 演示 Markdown、PDF 和 Word 的解析、清洗、切片与检索；当前运行 Word 示例            |
 | `src/12-rag-agentic.js`         | Agentic RAG        | 将向量检索封装为工具，由 Agent 结合聊天历史自主决定是否检索及检索内容              |
+| `src/13-skill.js`               | Agent Skill        | 从 `skills/*/SKILL.md` 的 frontmatter 发现技能，按需加载完整处理流程                |
+| `src/14-mcp.js`                 | MCP Client         | 通过 Streamable HTTP 获取本地天气 MCP Server 的工具并交给 Agent                     |
+| `mcp/http-server.js`            | MCP HTTP Server    | 提供 `get_weather` 工具，监听 `http://127.0.0.1:3000/mcp`                          |
+| `mcp/stdio-server.js`           | MCP stdio Server   | 提供同一天气工具的 stdio 传输实现                                                   |
+| `src/15-langgraph.js`           | LangGraph 入门     | 定义状态、节点和边，执行顺序图并生成 `graph.png`                                   |
+| `src/16-flow-control.js`        | LangGraph 流程控制 | 用 `Command` 更新状态并按预算分支跳转                                               |
+| `src/17-state-hitl.js`          | 状态与人工介入     | 用 `MemorySaver`、`interrupt` 和 `Command.resume` 暂停并恢复审批流程                |
+| `src/18-subgraph-and-retry.js`  | 子图与重试         | 保留子图示例；当前执行节点级 `retryPolicy` 重试下单                                 |
+| `src/19-responses-api.js`       | Responses API      | 使用 Responses API 绑定内置 `web_search` 工具查询天气                              |
 | `src/utils/index.js`            | 模型配置           | 创建共享的 `ChatOpenAI` 实例                                                       |
 | `src/utils/summary.js`          | 消息摘要           | 使用摘要模型压缩早期对话历史                                                       |
 | `prompts/AGENTS.md`             | 系统提示词         | 示例 system prompt，目前内容为简短回复约束                                         |
@@ -68,9 +77,17 @@ pnpm exec node src/09-middleware.js
 pnpm exec node src/10-rag.js
 pnpm exec node src/11-rag-doc.js
 pnpm exec node src/12-rag-agentic.js
+pnpm exec node src/13-skill.js
+pnpm exec node mcp/http-server.js # 在另一个终端保持运行后，再执行下一行
+pnpm exec node src/14-mcp.js
+pnpm exec node src/15-langgraph.js
+pnpm exec node src/16-flow-control.js
+pnpm exec node src/17-state-hitl.js
+pnpm exec node src/18-subgraph-and-retry.js
+pnpm exec node src/19-responses-api.js
 ```
 
-其中 `03-context-engineering.js`、`06-agent-loop.js` 和 `12-rag-agentic.js` 会持续接收命令行输入，按 `Ctrl+C` 可以结束进程。`08-memory.js` 会读写 `data/memory.sqlite`；`10-rag.js` 和 `11-rag-doc.js` 使用源码中预设的问题执行一次检索与回答。
+其中 `03-context-engineering.js`、`06-agent-loop.js` 和 `12-rag-agentic.js` 会持续接收命令行输入，按 `Ctrl+C` 可以结束进程。`17-state-hitl.js` 会等待命令行中的人工审批；`14-mcp.js` 需要先启动 `mcp/http-server.js`。`08-memory.js` 会读写 `data/memory.sqlite`；`10-rag.js` 和 `11-rag-doc.js` 使用源码中预设的问题执行一次检索与回答。`15-langgraph.js` 会在项目根目录生成 `graph.png`。
 
 ## 关键实现
 
@@ -98,14 +115,33 @@ pnpm exec node src/12-rag-agentic.js
 
 `12-rag-agentic.js` 将相似度检索封装为 `search_service_rule` 工具。与预先固定检索步骤的普通 RAG 不同，Agent 会结合当前问题和同一会话的历史消息，自主决定是否调用工具以及使用什么检索词。
 
+### Skill 与 MCP
+
+`13-skill.js` 会扫描 `skills` 目录下各个 `SKILL.md` 文件的 frontmatter，将名称和简介提供给客服 Agent；当问题匹配技能时，Agent 通过 `load_skill` 工具读取完整流程。
+
+`14-mcp.js` 使用 `MultiServerMCPClient` 连接本地 HTTP MCP Server，发现 `get_weather` 后交给天气 Agent 调用。当前客户端配置为 HTTP 传输；如需使用 stdio 版本，可在源码中切换对应的 `transport`、`command` 和 `args` 配置。
+
+### LangGraph
+
+`15-langgraph.js` 用 `StateSchema` 定义状态，通过 `START`、节点和 `END` 组成顺序执行图，并使用 `getGraphAsync()` 生成可视化图片。`16-flow-control.js` 在审核节点返回 `Command`，同时写入状态并用 `goto` 选择后续分支。
+
+`17-state-hitl.js` 使用 `MemorySaver` 保存检查点，在 `interrupt()` 处暂停，随后以相同的 `thread_id` 和 `Command.resume` 继续执行。文件顶部还保留了同一线程累积状态的检查点示例。`18-subgraph-and-retry.js` 顶部保留了将身份核验图作为父图节点的子图示例；当前启用的代码为下单节点配置 `retryPolicy.maxAttempts: 2`，模拟首次失败后第二次成功。
+
+### Responses API
+
+`19-responses-api.js` 使用 `ChatOpenAI` 的 `useResponsesApi: true` 切换到 Responses API，并通过 `bindTools` 绑定内置 `web_search` 工具查询杭州天气。文件顶部还保留了 Chat Completions API 和 Responses API 的调用结果、ID 与状态对比示例。运行该示例要求配置的模型服务支持 Responses API 和 `web_search` 工具。
+
 ## 开发说明
 
 - 示例默认使用 ESM，源码中的 import 路径保留 `.js` 后缀。
 - `src/02-prompt-engineering.js` 和 `src/03-context-engineering.js` 使用 `new URL(..., import.meta.url)` 读取提示词文件，可避免从不同工作目录启动时出现路径问题。
 - `src/11-rag-doc.js` 和 `src/12-rag-agentic.js` 使用相对路径读取 `documents`，建议从项目根目录运行。
+- `src/13-skill.js` 会读取 `skills` 目录下每个技能的 `SKILL.md`；新增技能时应提供包含 `name` 和 `description` 的 frontmatter。
+- `src/14-mcp.js` 默认连接本机 `127.0.0.1:3000`，运行前需启动 `mcp/http-server.js`。示例中的天气数据为固定字符串，仅用于演示 MCP 工具调用流程。
+- `src/19-responses-api.js` 会使用模型服务提供的联网搜索能力，回答内容取决于该服务当时返回的搜索结果。
 - 当前向量库为 `MemoryVectorStore`，进程结束后向量数据不会持久化；SQLite 仅用于保存 Agent 会话检查点。
 - 当前项目没有自动化测试脚本；修改示例后建议至少运行对应入口进行手动验证。
-- 工具示例中的天气数据是固定字符串，仅用于演示工具调用流程，不代表真实天气。
+- `src/15-langgraph.js` 会生成 `graph.png`，运行后如不需要可自行删除该产物。
 
 ## 后续可扩展方向
 
